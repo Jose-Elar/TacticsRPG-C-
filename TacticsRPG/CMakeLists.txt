@@ -23,7 +23,7 @@ target_link_libraries(TacticsRPG PRIVATE raylib)
 target_include_directories(TacticsRPG PRIVATE classes)
 
 
-// Compiler warnings
+
 if(MSVC)
     target_compile_options(TacticsRPG PRIVATE /W4 /WX)
 else()

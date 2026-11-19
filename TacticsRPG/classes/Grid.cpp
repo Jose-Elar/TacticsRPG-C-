@@ -8,28 +8,28 @@ Grid::Grid(int columns, int rows): m_columns(columns),m_rows(rows),m_tiles(stati
     }
 }
 
-size_t Grid::toIndex(const GridPosition& position) {
+size_t Grid::toIndex(const GridPosition& position) const {
     return static_cast<size_t>(position.y * m_columns + position.x);
 }
 
-bool Grid::isInBounds(GridPosition position) {
+bool Grid::isInBounds(GridPosition position) const {
     return position.x >= 0 && position.x < m_columns && position.y >= 0 && position.y < m_rows;
 }
 
-bool Grid::isWalkable(GridPosition position) {
+bool Grid::isWalkable(GridPosition position) const {
     if (!isInBounds(position)) {
         return false;
     }
     return m_tiles[toIndex(position)] == TileType::FLOOR;
 }
 
-GridPosition Grid::screenToGridPosition(Vector2 screenPosition) {
+GridPosition Grid::screenToGridPosition(Vector2 screenPosition) const {
     int x = static_cast<int>(std::floor(screenPosition.x / GameConfig::TILE_SIZE));
     int y = static_cast<int>(std::floor(screenPosition.y / GameConfig::TILE_SIZE));
     return GridPosition{x, y};
 }
 
-Vector2 Grid::gridToScreenPosition(GridPosition gridPosition) {
+Vector2 Grid::gridToScreenPosition(GridPosition gridPosition) const  {
     float x = static_cast<float>(gridPosition.x * GameConfig::TILE_SIZE);
     float y = static_cast<float>(gridPosition.y * GameConfig::TILE_SIZE);
     return Vector2{x, y};
@@ -54,4 +54,17 @@ void Grid::drawHighlightedTile(const GridPosition& position, Color color) {
     Vector2 screenPosition = gridToScreenPosition(position);
     DrawRectangle(static_cast<int>(screenPosition.x), static_cast<int>(screenPosition.y), GameConfig::TILE_SIZE, GameConfig::TILE_SIZE, color);
     DrawRectangleLines(static_cast<int>(screenPosition.x), static_cast<int>(screenPosition.y), GameConfig::TILE_SIZE, GameConfig::TILE_SIZE, GRAY);
+}
+
+std::optional<GridPosition> Grid::tileAt(Vector2 screenPosition) const {
+    GridPosition position = screenToGridPosition(screenPosition);
+    if (!isInBounds(position)) {
+        return std::nullopt;
+    }
+    return position;
+}
+
+Vector2 Grid::tileCenter(GridPosition position) const {
+    Vector2 corner = gridToScreenPosition(position);
+    return Vector2{corner.x + GameConfig::TILE_SIZE / 2.0f, corner.y + GameConfig::TILE_SIZE / 2.0f};
 }
