@@ -11,4 +11,6 @@ namespace GameConfig {
     const int WINDOW_HEIGHT = TILE_SIZE * GRID_ROWS + UI_PANEL_HEIGHT;
 
     const int TARGET_FPS = 60;
+
+    const float UNIT_MOVE_SPEED = 6.0f;
 }
