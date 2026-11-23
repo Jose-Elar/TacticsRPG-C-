@@ -1,2 +1,2 @@
 # TacticsRPG-C-
-Small RPG scene with fully functioning unit system,grid, and several other functionalities. Created in C++ with the use of raylib
+Small RPG scene in raylib, that is the works to be a fully functional rpg battle
