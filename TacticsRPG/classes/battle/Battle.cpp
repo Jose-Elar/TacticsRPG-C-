@@ -83,17 +83,6 @@ void Battle::update(float deltaTime)
     {
         endTurn();
     }
-    /*
-        m_previewPath.clear();
-        if (m_selectedUnit.has_value() && m_hoveredTile.has_value() && Pathfinding::containsPosition(m_reachableTiles, *m_hoveredTile))
-        {
-            m_previewPath = Pathfinding::findPath(m_grid, m_units[*m_selectedUnit].getPosition(), *m_hoveredTile, getUnitPositions());
-        }
-        else
-        {
-            m_previewPath.clear();
-        }
-            */
 }
 
 void Battle::draw() const

@@ -20,7 +20,13 @@ add_executable(TacticsRPG
     ${SOURCES}
 )
 target_link_libraries(TacticsRPG PRIVATE raylib)
-target_include_directories(TacticsRPG PRIVATE classes)
+target_include_directories(TacticsRPG PRIVATE 
+    classes/global
+    classes/map
+    classes/units
+    classes/actions
+    classes/battle
+)
 
 
 
