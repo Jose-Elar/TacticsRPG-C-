@@ -12,24 +12,30 @@ class Battle {
 
         void handleInput();
         void update(float deltaTime);
-        void draw();
+        void draw() const ;
+
+        //Used by Actions
+        const Grid& getGrid() const ;
+        const Unit& getUnit(size_t unitIndex) const;
+        Unit& getUnit(size_t unitIndex);
+        std::vector<GridPosition> getUnitPositions() const;
     
     private:
         // Helper functions
         std::optional<size_t> findUnitAt(GridPosition position) const;
-        std::vector<GridPosition> getUnitPositions() const;
         bool isAnyUnitMoving() const;
         bool canSelect(size_t unitIndex) const;
         bool hasTeamFinished(Team team) const;
 
         //Actions
         void selectUnit(size_t unitIndex);
-        void moveSelectedUnitTo(const GridPosition& targetPosition);
+        void chooseAction(size_t actionIndex);
+        void executeSelectedAction(GridPosition target);
         void clearSelection();
         void endTurn();
 
         //Draw
-        void drawWorld();
+        void drawWorld() const;
         void drawUI() const;
 
         Grid m_grid;
@@ -39,7 +45,9 @@ class Battle {
         int m_turnNumber;
 
         std::optional<size_t> m_selectedUnit;
-        std::vector<GridPosition> m_reachableTiles;
+        std::optional<size_t> m_selectedAction;
+        std::vector<GridPosition> m_validTargets;
+        //std::vector<GridPosition> m_reachableTiles;
 
         std::optional<GridPosition> m_hoveredTile;
         std::vector<GridPosition> m_previewPath;

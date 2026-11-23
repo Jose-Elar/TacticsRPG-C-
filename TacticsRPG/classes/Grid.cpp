@@ -35,7 +35,7 @@ Vector2 Grid::gridToScreenPosition(GridPosition gridPosition) const  {
     return Vector2{x, y};
 }
 
-void Grid::draw() {
+void Grid::draw() const {
     for ( int y = 0; y < m_rows; y++) {
         for ( int x = 0 ; x < m_columns; x++) {
             GridPosition position{x,y};
@@ -47,7 +47,7 @@ void Grid::draw() {
     }
 }
 
-void Grid::drawHighlightedTile(const GridPosition& position, Color color) {
+void Grid::drawHighlightedTile(const GridPosition& position, Color color) const {
     if (!isInBounds(position)) {
         return;
     }

@@ -1,6 +1,8 @@
 #include "Unit.h"
 #include "Grid.h"
 #include "Constants.h"
+#include "MoveAction.h"
+#include "WaitAction.h"
 #include "raylib.h"
 #include <utility>
 
@@ -14,8 +16,12 @@ Unit::Unit(std::string name, Team team, GridPosition position, int MovementRange
     m_path(),
     m_pathStep(0),
     m_moveProgress(0.0f),
-    m_hasMoved(false)
-    {}
+    m_hasMoved(false),
+    m_hasActed(false),
+    m_actions() {
+        m_actions.push_back(std::make_unique<MoveAction>());
+        m_actions.push_back(std::make_unique<WaitAction>());
+    }
 
 
 void Unit::startMoving(std::vector<GridPosition> path) {
@@ -28,6 +34,32 @@ void Unit::startMoving(std::vector<GridPosition> path) {
 bool Unit::isMoving() const {
     return m_pathStep < m_path.size();
 }
+
+bool Unit::hasMoved() const {
+    return m_hasMoved;
+}
+
+bool Unit::hasFinishedTurn() const {
+    return m_hasActed;
+}
+
+void Unit::finishTurn() {
+    m_hasActed = true;
+}
+
+void Unit::resetTurn(){
+    m_hasMoved = false;
+    m_hasActed = false;
+}
+
+size_t Unit::getActionCount() const{
+    return m_actions.size();
+}
+
+const Action& Unit::getAction(size_t index) const {
+    return *m_actions[index];
+}
+
 
 void Unit::update(float deltaTime){
     if(!isMoving()){
@@ -49,7 +81,7 @@ void Unit::update(float deltaTime){
     }
 }
 
-void Unit::draw(const Grid& grid) {
+void Unit::draw(const Grid& grid) const {
     Vector2 center = grid.tileCenter(m_position);
 
     if(isMoving()){
@@ -61,7 +93,7 @@ void Unit::draw(const Grid& grid) {
     float radius = GameConfig::TILE_SIZE * 0.35f;
     Color color = (m_team == Team::PLAYER) ? BLUE : RED;
 
-    if (m_hasMoved && !isMoving()) {
+    if (hasFinishedTurn() && !isMoving()) {
         color = Fade(color, 0.4f);
     }
 
@@ -89,10 +121,4 @@ void Unit::setPosition(GridPosition newPosition) {
     m_position = newPosition;
 }
 
-bool Unit::hasMoved() const {
-    return m_hasMoved;
-}
 
-void Unit::resetTurn() {
-    m_hasMoved = false;
-}

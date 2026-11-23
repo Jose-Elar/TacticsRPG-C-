@@ -15,8 +15,8 @@ class Grid {
     public:
         Grid(int colums, int rows);
 
-        void draw() ;
-        void drawHighlightedTile(const GridPosition& position, Color color) ;
+        void draw() const;
+        void drawHighlightedTile(const GridPosition& position, Color color) const ;
 
         bool isInBounds(GridPosition position) const;
         bool isWalkable(GridPosition position) const ;

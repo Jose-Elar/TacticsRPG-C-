@@ -4,8 +4,14 @@
 #include "raylib.h"
 
 Battle::Battle()
-    : m_grid(GameConfig::GRID_COLUMNS, GameConfig::GRID_ROWS), m_units(), m_currentTeam(Team::PLAYER), m_turnNumber(1),
-      m_selectedUnit(), m_reachableTiles(), m_hoveredTile(), m_previewPath(), m_unitsMoving(false)
+    : m_grid(GameConfig::GRID_COLUMNS, GameConfig::GRID_ROWS),
+      m_units(),
+      m_currentTeam(Team::PLAYER),
+      m_turnNumber(1),
+      m_selectedUnit(),
+      m_hoveredTile(),
+      m_previewPath(),
+      m_unitsMoving(false)
 {
     // Initialize units
     m_units.emplace_back("Knight", Team::PLAYER, GridPosition{2, 4}, 4);
@@ -21,26 +27,44 @@ void Battle::handleInput()
     m_hoveredTile = m_grid.tileAt(GetMousePosition());
     m_unitsMoving = isAnyUnitMoving();
 
-    if (IsKeyPressed(KEY_SPACE) && !m_unitsMoving)
+    if (m_unitsMoving)
+    {
+        return;
+    }
+
+    if (IsKeyPressed(KEY_SPACE))
     {
         endTurn();
         return;
     }
 
-    if (!IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || m_unitsMoving || !m_hoveredTile.has_value())
+    if (m_selectedUnit.has_value())
+    {
+        const Unit &unit = m_units[*m_selectedUnit];
+        for (size_t i = 0; i < unit.getActionCount() && i < 9; i++)
+        {
+            if (IsKeyPressed(KEY_ONE + static_cast<int>(i)))
+            {
+                chooseAction(i);
+            }
+        }
+    }
+
+    if (!IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || !m_hoveredTile.has_value())
     {
         return;
     }
 
-    std::optional<size_t> clickedUnit = findUnitAt(m_hoveredTile.value());
-
-    if (clickedUnit.has_value() && canSelect(clickedUnit.value()))
+    if (m_selectedAction.has_value() && Pathfinding::containsPosition(m_validTargets, *m_hoveredTile))
     {
-        selectUnit(clickedUnit.value());
+        executeSelectedAction(*m_hoveredTile);
+        return;
     }
-    else if (m_selectedUnit.has_value() && Pathfinding::containsPosition(m_reachableTiles, *m_hoveredTile))
+
+    std::optional<size_t> clickedUnit = findUnitAt(*m_hoveredTile);
+    if (clickedUnit.has_value() && canSelect(*clickedUnit))
     {
-        moveSelectedUnitTo(*m_hoveredTile);
+        selectUnit(*clickedUnit);
     }
     else
     {
@@ -59,36 +83,39 @@ void Battle::update(float deltaTime)
     {
         endTurn();
     }
-
-    m_previewPath.clear();
-    if (m_selectedUnit.has_value() && m_hoveredTile.has_value() && Pathfinding::containsPosition(m_reachableTiles, *m_hoveredTile))
-    {
-        m_previewPath = Pathfinding::findPath(m_grid, m_units[*m_selectedUnit].getPosition(), *m_hoveredTile, getUnitPositions());
-    }
-    else
-    {
+    /*
         m_previewPath.clear();
-    }
+        if (m_selectedUnit.has_value() && m_hoveredTile.has_value() && Pathfinding::containsPosition(m_reachableTiles, *m_hoveredTile))
+        {
+            m_previewPath = Pathfinding::findPath(m_grid, m_units[*m_selectedUnit].getPosition(), *m_hoveredTile, getUnitPositions());
+        }
+        else
+        {
+            m_previewPath.clear();
+        }
+            */
 }
 
-void Battle::draw()
+void Battle::draw() const
 {
     drawWorld();
     drawUI();
 }
 
-// Helper Functions
-
-std::optional<size_t> Battle::findUnitAt(GridPosition position) const
+// Used by Actions
+const Grid &Battle::getGrid() const
 {
-    for (size_t i = 0; i < m_units.size(); ++i)
-    {
-        if (m_units[i].getPosition() == position)
-        {
-            return i;
-        }
-    }
-    return std::nullopt;
+    return m_grid;
+}
+
+const Unit &Battle::getUnit(size_t unitIndex) const
+{
+    return m_units[unitIndex];
+}
+
+Unit &Battle::getUnit(size_t unitIndex)
+{
+    return m_units[unitIndex];
 }
 
 std::vector<GridPosition> Battle::getUnitPositions() const
@@ -99,6 +126,19 @@ std::vector<GridPosition> Battle::getUnitPositions() const
         positions.push_back(unit.getPosition());
     }
     return positions;
+}
+
+// Helper Functions
+std::optional<size_t> Battle::findUnitAt(GridPosition position) const
+{
+    for (size_t i = 0; i < m_units.size(); ++i)
+    {
+        if (m_units[i].getPosition() == position)
+        {
+            return i;
+        }
+    }
+    return std::nullopt;
 }
 
 bool Battle::isAnyUnitMoving() const
@@ -116,14 +156,14 @@ bool Battle::isAnyUnitMoving() const
 bool Battle::canSelect(size_t unitIndex) const
 {
     const Unit &unit = m_units[unitIndex];
-    return unit.getTeam() == m_currentTeam && !unit.hasMoved();
+    return unit.getTeam() == m_currentTeam && !unit.hasFinishedTurn();
 }
 
 bool Battle::hasTeamFinished(Team team) const
 {
     for (const Unit &unit : m_units)
     {
-        if (unit.getTeam() == team && !unit.hasMoved())
+        if (unit.getTeam() == team && !unit.hasFinishedTurn())
         {
             return false;
         }
@@ -136,27 +176,48 @@ bool Battle::hasTeamFinished(Team team) const
 void Battle::selectUnit(size_t unitIndex)
 {
     m_selectedUnit = unitIndex;
-    const Unit &unit = m_units[*m_selectedUnit];
-    m_reachableTiles = Pathfinding::findReachableTiles(m_grid, unit.getPosition(), unit.getMovementRange(), getUnitPositions());
+    m_selectedAction.reset();
+    m_validTargets.clear();
+
+    const Unit &unit = m_units[unitIndex];
+    for (size_t i = 0; i < unit.getActionCount(); i++)
+    {
+        if (unit.getAction(i).isAvailable(unit))
+        {
+            chooseAction(i);
+            return;
+        }
+    }
 }
 
-void Battle::moveSelectedUnitTo(const GridPosition &targetPosition)
+void Battle::chooseAction(size_t actionIndex)
 {
-    if (!m_selectedUnit.has_value())
+    const Unit &unit = m_units[*m_selectedUnit];
+    const Action &action = unit.getAction(actionIndex);
+
+    if (!action.isAvailable(unit))
     {
         return;
     }
 
-    Unit &unit = m_units[*m_selectedUnit];
-    unit.startMoving(Pathfinding::findPath(m_grid, unit.getPosition(), targetPosition, getUnitPositions()));
+    m_selectedAction = actionIndex;
+    m_validTargets = action.getValidTargets(*this, *m_selectedUnit);
+}
+
+void Battle::executeSelectedAction(GridPosition target)
+{
+    size_t unitIndex = *m_selectedUnit;
+    const Action &action = m_units[unitIndex].getAction(*m_selectedAction);
 
     clearSelection();
+    action.execute(*this, unitIndex, target);
 }
 
 void Battle::clearSelection()
 {
     m_selectedUnit.reset();
-    m_reachableTiles.clear();
+    m_selectedAction.reset();
+    m_validTargets.clear();
 }
 
 void Battle::endTurn()
@@ -181,11 +242,11 @@ void Battle::endTurn()
 
 // Draw
 
-void Battle::drawWorld()
+void Battle::drawWorld() const
 {
     m_grid.draw();
 
-    for (const GridPosition &tile : m_reachableTiles)
+    for (const GridPosition &tile : m_validTargets)
     {
         m_grid.drawHighlightedTile(tile, SKYBLUE);
     }
@@ -201,18 +262,13 @@ void Battle::drawWorld()
         m_grid.drawHighlightedTile(m_units[*m_selectedUnit].getPosition(), GREEN);
     }
 
-    if (!m_previewPath.empty())
+    if (m_selectedUnit.has_value() && m_selectedAction.has_value() && m_hoveredTile.has_value() && Pathfinding::containsPosition(m_validTargets, *m_hoveredTile))
     {
-        Vector2 previous = m_grid.tileCenter(m_units[*m_selectedUnit].getPosition());
-        for (const GridPosition &step : m_previewPath)
-        {
-            Vector2 current = m_grid.tileCenter(step);
-            DrawLineEx(previous, current, 5.0f, PURPLE);
-            previous = current;
-        }
+        const Action &action = m_units[*m_selectedUnit].getAction(*m_selectedAction);
+        action.drawPreview(*this, *m_selectedUnit, *m_hoveredTile);
     }
 
-    for (Unit &unit : m_units)
+    for (const Unit &unit : m_units)
     {
         unit.draw(m_grid);
     }
@@ -221,6 +277,7 @@ void Battle::drawWorld()
 void Battle::drawUI() const
 {
     constexpr int panelY = GameConfig::GRID_ROWS * GameConfig::TILE_SIZE;
+    constexpr int rightColumnX = GameConfig::WINDOW_WIDTH - 200;
 
     const char *phaseName = (m_currentTeam == Team::PLAYER) ? "Player phase" : "Enemy phase";
     Color phaseColor = (m_currentTeam == Team::PLAYER) ? BLUE : MAROON;
@@ -228,7 +285,17 @@ void Battle::drawUI() const
 
     if (m_selectedUnit.has_value())
     {
-        DrawText(TextFormat("Selected: %s", m_units[*m_selectedUnit].getName().c_str()),10, panelY + 40, 20, DARKGRAY);
+        const Unit &unit = m_units[*m_selectedUnit];
+
+        if (m_selectedAction.has_value())
+        {
+            const Action &action = unit.getAction(*m_selectedAction);
+            DrawText(TextFormat("%s: %s", unit.getName().c_str(), action.getHint().c_str()), 10, panelY + 40, 20, DARKGRAY);
+        }
+        else
+        {
+            DrawText(TextFormat("Selected: %s", unit.getName().c_str()), 10, panelY + 40, 20, DARKGRAY);
+        }
     }
     else if (m_unitsMoving)
     {
@@ -239,14 +306,39 @@ void Battle::drawUI() const
         DrawText("Click one of your units to select it", 10, panelY + 40, 20, DARKGRAY);
     }
 
-    DrawText("SPACE: end turn", 10, panelY + 70, 20, GRAY);
+    if (m_selectedUnit.has_value())
+    {
+        const Unit &unit = m_units[*m_selectedUnit];
+        int x = 10;
+        for (size_t i = 0; i < unit.getActionCount(); i++)
+        {
+            const Action &action = unit.getAction(i);
+
+            Color color = DARKGRAY;
+            if (!action.isAvailable(unit))
+            {
+                color = LIGHTGRAY;
+            }
+            else if (m_selectedAction == i)
+            {
+                color = DARKBLUE;
+            }
+
+            const char *label = TextFormat("%d: %s", static_cast<int>(i + 1), action.getName().c_str());
+            DrawText(label, x, panelY + 70, 20, color);
+            x += MeasureText(label, 20) + 30;
+        }
+    }
+
+    DrawText("SPACE: end turn", rightColumnX, panelY + 70, 20, GRAY);
 
     if (m_hoveredTile.has_value())
     {
-        DrawText(TextFormat("Tile: %d, %d", m_hoveredTile->x, m_hoveredTile->y),GameConfig::WINDOW_WIDTH - 160, panelY + 10, 20, DARKGRAY);
+        DrawText(TextFormat("Tile: %d, %d", m_hoveredTile->x, m_hoveredTile->y),
+                 rightColumnX, panelY + 10, 20, DARKGRAY);
     }
     else
     {
-        DrawText("Tile: none", GameConfig::WINDOW_WIDTH - 160, panelY + 10, 20, DARKGRAY);
+        DrawText("Tile: none", rightColumnX, panelY + 10, 20, DARKGRAY);
     }
 }
