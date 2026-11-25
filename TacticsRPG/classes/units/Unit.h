@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include "GridPosition.h"
+#include "UnitStats.h"
 #include "Action.h"
 
 class Grid;
@@ -15,7 +16,7 @@ enum class Team {
 
 class Unit {
     public:
-        Unit(std::string name, Team team, GridPosition position, int MovementRange);
+        Unit(std::string name, Team team, GridPosition position, UnitStats stats);
 
         void update(float deltaTime);
         void draw(const Grid& grid) const ;
@@ -28,6 +29,11 @@ class Unit {
         void finishTurn();
         void resetTurn();
 
+        void takeDamage(int amount);
+        bool isAlive() const;
+        int getHealth() const;
+        int getMaxHealth() const;
+
         size_t getActionCount() const;
         const Action& getAction(size_t index) const;
 
@@ -35,6 +41,8 @@ class Unit {
         Team getTeam() const;
         const GridPosition& getPosition() const;
         int getMovementRange() const;
+        int getAttackPower() const;
+        int getAttackRange() const;
 
         void setPosition(GridPosition newPosition);
 
@@ -42,7 +50,8 @@ class Unit {
         std::string m_name;
         Team m_team;
         GridPosition m_position;
-        int movementRange;
+        UnitStats m_stats;
+        int m_health;
 
         std::vector<GridPosition> m_path;
         size_t m_pathStep;

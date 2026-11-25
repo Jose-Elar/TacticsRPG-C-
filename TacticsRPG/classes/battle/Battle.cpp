@@ -8,16 +8,18 @@ Battle::Battle()
       m_units(),
       m_currentTeam(Team::PLAYER),
       m_turnNumber(1),
+      m_winner(),
       m_selectedUnit(),
+      m_selectedAction(),
+      m_validTargets(),
       m_hoveredTile(),
-      m_previewPath(),
       m_unitsMoving(false)
 {
     // Initialize units
-    m_units.emplace_back("Knight", Team::PLAYER, GridPosition{2, 4}, 4);
-    m_units.emplace_back("Archer", Team::PLAYER, GridPosition{2, 6}, 5);
-    m_units.emplace_back("Goblin", Team::ENEMY, GridPosition{12, 4}, 4);
-    m_units.emplace_back("Orc", Team::ENEMY, GridPosition{12, 6}, 3);
+    m_units.emplace_back("Knight", Team::PLAYER, GridPosition{2, 4}, UnitStats{.maxHealth = 30, .movementRange = 4, .attackPower = 8, .attackRange = 1});
+    m_units.emplace_back("Archer", Team::PLAYER, GridPosition{2, 6}, UnitStats{.maxHealth = 20, .movementRange = 5, .attackPower = 6, .attackRange = 3});
+    m_units.emplace_back("Goblin", Team::ENEMY, GridPosition{12, 4}, UnitStats{.maxHealth = 18, .movementRange = 4, .attackPower = 5, .attackRange = 1});
+    m_units.emplace_back("Orc", Team::ENEMY, GridPosition{12, 6}, UnitStats{.maxHealth = 32, .movementRange = 3, .attackPower = 9, .attackRange = 1});
 }
 
 // FrameStages
@@ -27,7 +29,7 @@ void Battle::handleInput()
     m_hoveredTile = m_grid.tileAt(GetMousePosition());
     m_unitsMoving = isAnyUnitMoving();
 
-    if (m_unitsMoving)
+    if (m_unitsMoving || m_winner.has_value())
     {
         return;
     }
@@ -79,22 +81,46 @@ void Battle::update(float deltaTime)
         unit.update(deltaTime);
     }
 
-    if (!isAnyUnitMoving() && hasTeamFinished(m_currentTeam))
+    if(m_winner.has_value() || isAnyUnitMoving())
     {
+        return;
+    }
+
+    checkForWinner();
+    if(m_winner.has_value()){
+        clearSelection();
+        return;
+    }
+
+    if(hasTeamFinished(m_currentTeam)){
         endTurn();
     }
+
 }
 
 void Battle::draw() const
 {
     drawWorld();
     drawUI();
+    if(m_winner.has_value()){
+        drawGameOver();
+    }
+}
+
+bool Battle::isOver() const
+{
+    return m_winner.has_value();
 }
 
 // Used by Actions
 const Grid &Battle::getGrid() const
 {
     return m_grid;
+}
+
+size_t Battle::getUnitCount() const
+{
+    return m_units.size();
 }
 
 const Unit &Battle::getUnit(size_t unitIndex) const
@@ -112,7 +138,10 @@ std::vector<GridPosition> Battle::getUnitPositions() const
     std::vector<GridPosition> positions;
     for (const Unit &unit : m_units)
     {
-        positions.push_back(unit.getPosition());
+        if (unit.isAlive())
+        {
+            positions.push_back(unit.getPosition());
+        }
     }
     return positions;
 }
@@ -148,16 +177,35 @@ bool Battle::canSelect(size_t unitIndex) const
     return unit.getTeam() == m_currentTeam && !unit.hasFinishedTurn();
 }
 
+bool Battle::canUseAction(size_t unitIndex, size_t actionIndex) const
+{
+    const Unit &unit = m_units[unitIndex];
+    const Action &action = unit.getAction(actionIndex);
+    return action.isAvailable(unit) && !action.getValidTargets(*this, unitIndex).empty();
+}
+
 bool Battle::hasTeamFinished(Team team) const
 {
     for (const Unit &unit : m_units)
     {
-        if (unit.getTeam() == team && !unit.hasFinishedTurn())
+        if (unit.isAlive() && unit.getTeam() == team && !unit.hasFinishedTurn())
         {
             return false;
         }
     }
     return true;
+}
+
+bool Battle::hasLivingUnits(Team team) const
+{
+    for (const Unit &unit : m_units)
+    {
+        if (unit.isAlive() && unit.getTeam() == team)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 // Actions
@@ -171,7 +219,7 @@ void Battle::selectUnit(size_t unitIndex)
     const Unit &unit = m_units[unitIndex];
     for (size_t i = 0; i < unit.getActionCount(); i++)
     {
-        if (unit.getAction(i).isAvailable(unit))
+        if (canUseAction(unitIndex, i))
         {
             chooseAction(i);
             return;
@@ -181,14 +229,12 @@ void Battle::selectUnit(size_t unitIndex)
 
 void Battle::chooseAction(size_t actionIndex)
 {
-    const Unit &unit = m_units[*m_selectedUnit];
-    const Action &action = unit.getAction(actionIndex);
-
-    if (!action.isAvailable(unit))
+    if (!canUseAction(*m_selectedUnit, actionIndex))
     {
         return;
     }
 
+    const Action &action = m_units[*m_selectedUnit].getAction(actionIndex);
     m_selectedAction = actionIndex;
     m_validTargets = action.getValidTargets(*this, *m_selectedUnit);
 }
@@ -229,6 +275,18 @@ void Battle::endTurn()
     }
 }
 
+void Battle::checkForWinner()
+{
+    if (!hasLivingUnits(Team::ENEMY))
+    {
+        m_winner = Team::PLAYER;
+    }
+    else if (!hasLivingUnits(Team::PLAYER))
+    {
+        m_winner = Team::ENEMY;
+    }
+}
+
 // Draw
 
 void Battle::drawWorld() const
@@ -248,18 +306,21 @@ void Battle::drawWorld() const
 
     if (m_selectedUnit.has_value())
     {
-        m_grid.drawHighlightedTile(m_units[*m_selectedUnit].getPosition(), GREEN);
+        m_grid.drawHighlightedTile(m_units[*m_selectedUnit].getPosition(), YELLOW);
+    }
+
+    for (const Unit &unit : m_units)
+    {
+        if (unit.isAlive())
+        {
+            unit.draw(m_grid);
+        }
     }
 
     if (m_selectedUnit.has_value() && m_selectedAction.has_value() && m_hoveredTile.has_value() && Pathfinding::containsPosition(m_validTargets, *m_hoveredTile))
     {
         const Action &action = m_units[*m_selectedUnit].getAction(*m_selectedAction);
         action.drawPreview(*this, *m_selectedUnit, *m_hoveredTile);
-    }
-
-    for (const Unit &unit : m_units)
-    {
-        unit.draw(m_grid);
     }
 }
 
@@ -279,11 +340,11 @@ void Battle::drawUI() const
         if (m_selectedAction.has_value())
         {
             const Action &action = unit.getAction(*m_selectedAction);
-            DrawText(TextFormat("%s: %s", unit.getName().c_str(), action.getHint().c_str()), 10, panelY + 40, 20, DARKGRAY);
+            DrawText(TextFormat("%s (%d/%d HP): %s", unit.getName().c_str(), unit.getHealth(), unit.getMaxHealth(), action.getHint().c_str()), 10, panelY + 40, 20, DARKGRAY);
         }
         else
         {
-            DrawText(TextFormat("Selected: %s", unit.getName().c_str()), 10, panelY + 40, 20, DARKGRAY);
+            DrawText(TextFormat("%s (%d/%d HP)", unit.getName().c_str(), unit.getHealth(), unit.getMaxHealth()), 10, panelY + 40, 20, DARKGRAY);
         }
     }
     else if (m_unitsMoving)
@@ -304,7 +365,7 @@ void Battle::drawUI() const
             const Action &action = unit.getAction(i);
 
             Color color = DARKGRAY;
-            if (!action.isAvailable(unit))
+            if (!canUseAction(*m_selectedUnit, i))
             {
                 color = LIGHTGRAY;
             }
@@ -323,11 +384,26 @@ void Battle::drawUI() const
 
     if (m_hoveredTile.has_value())
     {
-        DrawText(TextFormat("Tile: %d, %d", m_hoveredTile->x, m_hoveredTile->y),
-                 rightColumnX, panelY + 10, 20, DARKGRAY);
+        DrawText(TextFormat("Tile: %d, %d", m_hoveredTile->x, m_hoveredTile->y), rightColumnX, panelY + 10, 20, DARKGRAY);
     }
     else
     {
         DrawText("Tile: none", rightColumnX, panelY + 10, 20, DARKGRAY);
     }
+}
+
+void Battle::drawGameOver() const
+{
+    constexpr int mapHeight = GameConfig::GRID_ROWS * GameConfig::TILE_SIZE;
+
+    DrawRectangle(0, 0, GameConfig::WINDOW_WIDTH, mapHeight, Fade(BLACK, 0.5f));
+
+    const char *title = (*m_winner == Team::PLAYER) ? "Victory!" : "Defeat";
+    Color titelColor = (*m_winner == Team::PLAYER) ? SKYBLUE : RED;
+    int titleWidth = MeasureText(title, 60);
+    DrawText(title, (GameConfig::WINDOW_WIDTH - titleWidth) / 2, mapHeight / 2 - 50, 60, titelColor);
+
+    const char *hint = "Press R to play again";
+    int hintWidth = MeasureText(hint, 24);
+    DrawText(hint, (GameConfig::WINDOW_WIDTH - hintWidth) / 2, mapHeight / 2 + 20, 24, RAYWHITE);
 }

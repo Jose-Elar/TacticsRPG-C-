@@ -9,10 +9,13 @@ int main(){
     Battle battle;
 
     while(!WindowShouldClose()){
-        float deltaTime = GetFrameTime();
+
+        if (battle.isOver() && IsKeyPressed(KEY_R)){
+            battle = Battle();
+        }
 
         battle.handleInput();
-        battle.update(deltaTime);
+        battle.update(GetFrameTime());
 
         BeginDrawing();
         ClearBackground(RAYWHITE);
