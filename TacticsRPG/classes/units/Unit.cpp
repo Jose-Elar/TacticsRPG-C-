@@ -6,6 +6,7 @@
 #include "WaitAction.h"
 #include "raylib.h"
 #include <utility>
+#include <algorithm>
 
 static void drawHealthBar(Vector2 center, int health, int maxHealth){
     const float width = GameConfig::TILE_SIZE * 0.8f;

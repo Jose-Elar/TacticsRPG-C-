@@ -151,7 +151,7 @@ std::optional<size_t> Battle::findUnitAt(GridPosition position) const
 {
     for (size_t i = 0; i < m_units.size(); ++i)
     {
-        if (m_units[i].getPosition() == position)
+        if ( m_units[i].isAlive() && m_units[i].getPosition() == position)
         {
             return i;
         }
@@ -174,7 +174,7 @@ bool Battle::isAnyUnitMoving() const
 bool Battle::canSelect(size_t unitIndex) const
 {
     const Unit &unit = m_units[unitIndex];
-    return unit.getTeam() == m_currentTeam && !unit.hasFinishedTurn();
+    return unit.isAlive() && unit.getTeam() == m_currentTeam && !unit.hasFinishedTurn();
 }
 
 bool Battle::canUseAction(size_t unitIndex, size_t actionIndex) const

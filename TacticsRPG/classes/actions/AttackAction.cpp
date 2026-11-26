@@ -58,7 +58,7 @@ void AttackAction::drawPreview (const Battle& battle, size_t actorIndex, GridPos
     const Unit& attacker = battle.getUnit(actorIndex);
     const Unit& defender = battle.getUnit(*targetIndex);
 
-    int damage = attacker.getAttackRange();
+    int damage = attacker.getAttackPower();
     int remaining = std::max(0, defender.getHealth() - damage);
 
     const char* text = TextFormat("-%d  (%d left )", damage,remaining);
